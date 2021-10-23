@@ -1,24 +1,21 @@
-# -*- coding: utf-8 -*-
-
-# Sample Python code for youtube.playlists.list
-# See instructions for running these code samples locally:
-# https://developers.google.com/explorer-help/guides/code_samples#python
-
 import os
 import sys
 import json
+import re
 
 from pprint import pprint
-from collections import Counter
 
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
 
-scopes = ['https://www.googleapis.com/auth/youtube.readonly']
 playlists_json_file = 'playlists.json'
 
 def load():
+    """
+    Load all playlists data using Youtube Data API for a authenticated user (using Client ID secrets file)
+    and save it into a JSON file
+    """
     # Disable OAuthlib's HTTPS verification when running locally.
     # *DO NOT* leave this option enabled in production.
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -27,9 +24,8 @@ def load():
     api_version = 'v3'
     client_secrets_file = 'C:/Users/Igor/Desktop/Playlists/GOOGLE/client_secret_1042753516680-9ht74l6b9c573g69v9jbimdbjdvv9dbj.apps.googleusercontent.com.json'
 
-    # Get credentials and create an API client
     flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(
-        client_secrets_file, scopes)
+        client_secrets_file, ['https://www.googleapis.com/auth/youtube.readonly'])
     credentials = flow.run_console()
     youtube = googleapiclient.discovery.build(
         api_service_name, api_version, credentials=credentials)
@@ -51,17 +47,27 @@ def load():
 
         playlist = []
         for yt_track in yt_playlist['items']:
-            playlist.append({'song': yt_track['snippet']['title'], 'artist': yt_track['snippet']['videoOwnerChannelTitle'][:-8]})
+            playlist.append({'title': yt_track['snippet']['title'], 'artist': yt_track['snippet']['videoOwnerChannelTitle'][:-8]})
 
         playlists[yt_playlist_id['snippet']['title']] = playlist
 
-    j = json.dumps(playlists, indent=4)
-    with open(playlists_json_file, 'w') as f:
-        print(str(j), file=f)
+    playlists_json = json.dumps(playlists, indent=4)
+    with open(playlists_json_file, 'w') as file:
+        print(str(playlists_json), file=file)
     
 def manage():
+    """
+    Read playlists data from JSON file, and then
+    print instructions for user to remove track duplicates across different playlists.
+    The playlist with the least count of tracks retains the track, other duplicates are removed.
+    """
     with open(playlists_json_file, 'rb') as playlists_json:
         playlists = json.load(playlists_json)
+
+#    Remove text in parentheses from track titles since some of the tracks may contain "(radio edit)" or similar
+#    for playlist_name, playlist in playlists.items():
+#        for track in playlist:
+#            track['title'] = re.sub(r"\(.*\)", "", track['title']).strip()
         
     all_tracks = []
     for playlist_name, playlist in playlists.items():
@@ -76,8 +82,8 @@ def manage():
         else:
             playlists_with_dupl = []
             for playlist_name, playlist in playlists.items():
-                for t in playlist:
-                    if t['song'] == track['song'] and t['artist'] == track['artist']:
+                for track_compare in playlist:
+                    if track_compare['title'] == track['title'] and track_compare['artist'] == track['artist']:
                         playlists_with_dupl.append({'name':playlist_name, 'playlist': playlist})
                         
             playlists_with_dupl_sorted = sorted(playlists_with_dupl, key = lambda i: (len(i['playlist'])))
@@ -89,6 +95,10 @@ def manage():
         print(cmd)
     
 if __name__ == '__main__':
+    """
+    'load' - Load playlists from Youtube Data API
+    Any other arguments - manage playlists
+    """
     if len(sys.argv) > 1 and sys.argv[1] == 'load':
         load()
     else:
